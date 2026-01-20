@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="nl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Virtualized Transcript Grid + Single TipTap Editor</title>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --panel: #0f1730;
+            --panel2: #121c3a;
+            --text: #e8ecff;
+            --muted: #a9b3d6;
+            --line: #27325b;
+            --accent: #7aa2ff;
+            --danger: #ff6b6b;
+            --rowh: 44px;
+            /* vaste rijhoogte voor virtualization */
+            --timew: 140px;
+            --spkw: 160px;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            background: linear-gradient(180deg, var(--bg), #070a14);
+            color: var(--text);
+        }
+
+        .app {
+            display: grid;
+            grid-template-columns: 1fr 420px;
+            gap: 14px;
+            padding: 16px;
+            height: 100%;
+            box-sizing: border-box;
+        }
+
+        .left,
+        .right {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+            min-height: 0;
+        }
+
+        .topbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            padding: 12px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .title {
+            font-weight: 800;
+            letter-spacing: 0.2px;
+            margin-right: auto;
+            display: flex;
+            gap: 10px;
+            align-items: baseline;
+        }
+
+        .title small {
+            color: var(--muted);
+            font-weight: 600;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            border: 1px solid var(--line);
+            padding: 8px 10px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+        }
+
+        button:hover {
+            border-color: rgba(122, 162, 255, 0.7);
+        }
+
+        button.primary {
+            border-color: rgba(122, 162, 255, 0.6);
+            background: rgba(122, 162, 255, 0.12);
+        }
+
+        button.danger {
+            border-color: rgba(255, 107, 107, 0.5);
+        }
+
+        button.danger:hover {
+            border-color: rgba(255, 107, 107, 0.9);
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        /* Grid header */
+        .grid-header {
+            display: grid;
+            grid-template-columns: var(--timew) var(--spkw) 1fr;
+            gap: 0;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 800;
+        }
+
+        /* Virtual scroll area */
+        .viewport {
+            height: calc(100% - 54px - 45px);
+            /* topbar + header (approx) */
+            overflow: auto;
+            position: relative;
+            min-height: 0;
+        }
+
+        .spacer {
+            position: relative;
+            width: 100%;
+        }
+
+        .rows {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 0;
+            will-change: transform;
+        }
+
+        /* Row */
+        .row {
+            display: grid;
+            grid-template-columns: var(--timew) var(--spkw) 1fr;
+            align-items: center;
+            height: var(--rowh);
+            box-sizing: border-box;
+            padding: 0 12px;
+            border-bottom: 1px solid rgba(39, 50, 91, 0.65);
+        }
+
+        .row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .cell {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            padding-right: 10px;
+        }
+
+        .time {
+            font-variant-numeric: tabular-nums;
+        }
+
+        .speaker {
+            color: #dbe3ff;
+        }
+
+        .text {
+            color: var(--text);
+            cursor: text;
+        }
+
+        .text .preview {
+            color: var(--text);
+        }
+
+        .row.active {
+            background: rgba(122, 162, 255, 0.10);
+            outline: 1px solid rgba(122, 162, 255, 0.25);
+            outline-offset: -1px;
+        }
+
+        /* Right side editor panel */
+        .editor-pane {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .pane-head {
+            padding: 12px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .pane-head .meta {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .pane-head .meta b {
+            color: var(--text);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 6px;
+        }
+
+        .editor-wrap {
+            padding: 12px;
+            min-height: 0;
+            overflow: auto;
+        }
+
+        .tiptap-host {
+            border: 1px solid rgba(39, 50, 91, 0.9);
+            background: rgba(15, 23, 48, 0.7);
+            border-radius: 14px;
+            padding: 12px;
+        }
+
+        .tiptap-host .ProseMirror {
+            outline: none;
+            min-height: 180px;
+            color: var(--text);
+            line-height: 1.4;
+        }
+
+        .tiptap-host .ProseMirror p {
+            margin: 0 0 10px;
+        }
+
+        .tiptap-host .ProseMirror p:last-child {
+            margin-bottom: 0;
+        }
+
+        .tiptap-host .ProseMirror-focused {
+            box-shadow: 0 0 0 2px rgba(122, 162, 255, 0.25);
+            border-radius: 12px;
+        }
+
+        .pane-foot {
+            padding: 12px;
+            border-top: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        pre {
+            margin: 12px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 12px;
+            background: rgba(0, 0, 0, 0.35);
+            color: #cfe1ff;
+            overflow: auto;
+            max-height: 220px;
+            font-size: 12px;
+        }
+
+        code {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+        }
+
+        @media (max-width: 1050px) {
+            .app {
+                grid-template-columns: 1fr;
+            }
+
+            .right {
+                height: 420px;
+            }
+
+            .viewport {
+                height: calc(100% - 54px - 45px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <!-- LEFT: virtualized grid -->
+        <div class="left">
+            <div class="topbar">
+                <div class="title">
+                    Transcript Grid <small>(1000 rijen, virtual scroll)</small>
+                </div>
+                <div class="hint">Klik op de tekstkolom om te editen in het paneel rechts.</div>
+                <button class="primary" id="btnExport">Export JSON</button>
+                <button class="danger" id="btnReset">Reset demo</button>
+            </div>
+
+            <div class="grid-header">
+                <div>Timestamp</div>
+                <div>Spreker</div>
+                <div>Tekst (klik om te editen)</div>
+            </div>
+
+            <div class="viewport" id="viewport">
+                <div class="spacer" id="spacer">
+                    <div class="rows" id="rows"></div>
+                </div>
+            </div>
+
+            <pre id="exportOut" aria-label="export output"></pre>
+        </div>
+
+        <!-- RIGHT: single TipTap editor -->
+        <div class="right">
+            <div class="editor-pane">
+                <div class="pane-head">
+                    <div style="font-weight:900;">Editor (single TipTap instance)</div>
+                    <div class="meta">
+                        <span>Rij: <b id="metaRow">—</b></span>
+                        <span>Timestamp: <b id="metaTime">—</b></span>
+                        <span>Spreker: <b id="metaSpk">—</b></span>
+                    </div>
+                    <div class="toolbar">
+                        <button id="btnBold">Bold</button>
+                        <button id="btnItalic">Italic</button>
+                        <button id="btnUndo">Undo</button>
+                        <button id="btnRedo">Redo</button>
+                        <button id="btnClear">Clear tekst</button>
+                    </div>
+                    <div class="hint">Shortcuts: Ctrl/⌘+B, Ctrl/⌘+I, Ctrl/⌘+Z, Ctrl/⌘+Shift+Z</div>
+                </div>
+
+                <div class="editor-wrap">
+                    <div class="tiptap-host" id="editorHost"></div>
+                </div>
+
+                <div class="pane-foot">
+                    De tabel links is read-only voor timestamp/spreker. Alleen de tekst van de geselecteerde rij wordt
+                    bewerkt.
+                    Data-model wordt live bijgewerkt in <code>rows[i].text_html</code>.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Editor } from "https://cdn.jsdelivr.net/npm/@tiptap/core@2.10.4/dist/index.js";
+        import StarterKit from "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.10.4/dist/index.js";
+
+        /** -----------------------------
+         *  Data model
+         *  ----------------------------- */
+
+        const transcriptData = [
+            { "timestamp": "00:00:01.120", "speaker": "Spreker 1", "text_html": "<p>Welkom. Vandaag bespreken we de planning.</p>" },
+            { "timestamp": "00:00:04.560", "speaker": "Spreker 2", "text_html": "<p>Top. Kunnen we beginnen met de requirements?</p>" },
+            { "timestamp": "00:00:08.240", "speaker": "Spreker 1", "text_html": "<p>Ja. Belangrijk: timestamps en spreker zijn read-only; alleen tekst is editable.</p>" },
+            { "timestamp": "00:00:12.015", "speaker": "Spreker 3", "text_html": "<p>Ik noteer actiepunten. Eerst: data model en export-formaat.</p>" },
+            { "timestamp": "00:00:15.900", "speaker": "Spreker 2", "text_html": "<p>Voor 1000 rijen willen we virtual scrolling en één editor instance.</p>" },
+            { "timestamp": "00:00:19.350", "speaker": "Spreker 1", "text_html": "<p>Dus: grid renderen + editor in zijpaneel. Klinkt goed.</p>" },
+            { "timestamp": "00:00:22.780", "speaker": "Spreker 4", "text_html": "<p>Let op XSS: sla bij voorkeur TipTap JSON op, of sanitize HTML strikt.</p>" },
+            { "timestamp": "00:00:26.410", "speaker": "Spreker 3", "text_html": "<p>Kunnen we ook keyboard navigatie toevoegen? Pijltjes omhoog/omlaag.</p>" },
+            { "timestamp": "00:00:29.995", "speaker": "Spreker 2", "text_html": "<p>Ja, en Enter om te editen, Escape om terug naar grid te gaan.</p>" },
+            { "timestamp": "00:00:33.120", "speaker": "Spreker 1", "text_html": "<p>We willen export naar JSON met <strong>timestamp</strong>, <em>speaker</em>, en tekst.</p>" },
+            { "timestamp": "00:00:36.640", "speaker": "Spreker 4", "text_html": "<p>Opslagkeuze: <code>text_html</code> is handig, maar JSON is robuuster.</p>" },
+            { "timestamp": "00:00:40.050", "speaker": "Spreker 3", "text_html": "<p>Voor de preview in de grid strippen we HTML naar plain text.</p>" },
+            { "timestamp": "00:00:43.700", "speaker": "Spreker 2", "text_html": "<p>En we updaten alleen de zichtbare rijen; anders is re-render te zwaar.</p>" },
+            { "timestamp": "00:00:47.310", "speaker": "Spreker 1", "text_html": "<p>Later kunnen we search toevoegen: spring naar timestamp of spreker.</p>" },
+            { "timestamp": "00:00:50.920", "speaker": "Spreker 3", "text_html": "<p>Ook handig: markeer onduidelijke stukken met <em>[inaudible]</em>.</p>" },
+            { "timestamp": "00:00:54.260", "speaker": "Spreker 4", "text_html": "<p>Voor audit trail: log edits per rij met user + tijd + diff.</p>" },
+            { "timestamp": "00:00:57.880", "speaker": "Spreker 2", "text_html": "<p>We houden timestamps stabiel: geen automatische hersegmentatie in deze editor.</p>" },
+            { "timestamp": "00:01:01.500", "speaker": "Spreker 1", "text_html": "<p>Oké. MVP: virtual grid + single editor + export.</p>" },
+            { "timestamp": "00:01:05.130", "speaker": "Spreker 3", "text_html": "<p>In afgeschermde omgeving bundlen we dependencies met Vite.</p>" },
+            { "timestamp": "00:01:08.760", "speaker": "Spreker 4", "text_html": "<p>En we valideren input: whitelist tags zoals <strong>&lt;strong&gt;</strong> en <em>&lt;em&gt;</em>.</p>" }
+        ];
+
+        let rows = structuredClone(transcriptData);
+        const initialSnapshot = JSON.stringify(rows);
+
+
+        function pad2(n) { return String(n).padStart(2, "0"); }
+        function pad3(n) { return String(n).padStart(3, "0"); }
+
+        function makeDemoRows(count) {
+            const speakers = ["Spreker 1", "Spreker 2", "Spreker 3", "Spreker 4"];
+            const out = [];
+            for (let i = 0; i < count; i++) {
+                const s = speakers[i % speakers.length];
+                const mm = Math.floor(i / 60);
+                const ss = i % 60;
+                const ms = (i * 37) % 1000;
+                const timestamp = `00:${pad2(mm)}:${pad2(ss)}.${pad3(ms)}`;
+                const text = `Dit is transcript segment ${i + 1}. Dubbelklik/klik om te editen.`;
+                out.push({
+                    timestamp,
+                    speaker: s,
+                    // store html for rich text (in productie: overweeg editor.getJSON() als bron van waarheid)
+                    text_html: `<p>${escapeHtml(text)}</p>`
+                });
+            }
+            return out;
+        }
+
+        let rows = makeDemoRows(N);
+        const initialSnapshot = JSON.stringify(rows);
+
+        function escapeHtml(s) {
+            return s
+                .replaceAll("&", "&amp;")
+                .replaceAll("<", "&lt;")
+                .replaceAll(">", "&gt;")
+                .replaceAll('"', "&quot;")
+                .replaceAll("'", "&#039;");
+        }
+
+        function stripHtmlToPreview(html) {
+            // heel simpele preview; voor mooier kun je DOMParser gebruiken
+            return html
+                .replace(/<\/p>\s*<p>/g, "  ")
+                .replace(/<br\s*\/?>/g, " ")
+                .replace(/<[^>]*>/g, "")
+                .replace(/\s+/g, " ")
+                .trim();
+        }
+
+        /** -----------------------------
+         *  Virtualized grid rendering
+         *  ----------------------------- */
+        const viewport = document.getElementById("viewport");
+        const spacer = document.getElementById("spacer");
+        const rowsEl = document.getElementById("rows");
+
+        const ROW_H = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--rowh"), 10);
+        const OVERSCAN = 10;
+
+        spacer.style.height = (rows.length * ROW_H) + "px";
+
+        let start = 0;
+        let end = 0;
+        let activeIndex = -1;
+
+        function renderVisible() {
+            const scrollTop = viewport.scrollTop;
+            const viewportH = viewport.clientHeight;
+
+            const first = Math.max(0, Math.floor(scrollTop / ROW_H) - OVERSCAN);
+            const visibleCount = Math.ceil(viewportH / ROW_H) + 2 * OVERSCAN;
+            const last = Math.min(rows.length, first + visibleCount);
+
+            start = first;
+            end = last;
+
+            // Position the container
+            rowsEl.style.transform = `translateY(${start * ROW_H}px)`;
+
+            // Render only [start, end)
+            const frag = document.createDocumentFragment();
+            for (let i = start; i < end; i++) {
+                const r = rows[i];
+                const rowDiv = document.createElement("div");
+                rowDiv.className = "row" + (i === activeIndex ? " active" : "");
+                rowDiv.dataset.index = String(i);
+
+                const c1 = document.createElement("div");
+                c1.className = "cell time";
+                c1.textContent = r.timestamp;
+
+                const c2 = document.createElement("div");
+                c2.className = "cell speaker";
+                c2.textContent = r.speaker;
+
+                const c3 = document.createElement("div");
+                c3.className = "cell text";
+                const preview = stripHtmlToPreview(r.text_html);
+                c3.innerHTML = `<span class="preview">${escapeHtml(preview || "—")}</span>`;
+                c3.title = "Klik om te editen";
+
+                // click handler: open editor for this row
+                c3.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    selectRow(i);
+                });
+
+                rowDiv.addEventListener("click", () => selectRow(i));
+
+                rowDiv.appendChild(c1);
+                rowDiv.appendChild(c2);
+                rowDiv.appendChild(c3);
+                frag.appendChild(rowDiv);
+            }
+
+            rowsEl.innerHTML = "";
+            rowsEl.appendChild(frag);
+        }
+
+        viewport.addEventListener("scroll", () => renderVisible());
+        window.addEventListener("resize", () => renderVisible());
+
+        /** -----------------------------
+         *  Single TipTap editor
+         *  ----------------------------- */
+        const metaRow = document.getElementById("metaRow");
+        const metaTime = document.getElementById("metaTime");
+        const metaSpk = document.getElementById("metaSpk");
+        const editorHost = document.getElementById("editorHost");
+
+        let isProgrammaticSet = false;
+
+        const editor = new Editor({
+            element: editorHost,
+            extensions: [
+                StarterKit.configure({
+                    heading: false,
+                    bulletList: false,
+                    orderedList: false,
+                    blockquote: false,
+                    codeBlock: false,
+                    horizontalRule: false,
+                }),
+            ],
+            content: "<p>Selecteer links een rij…</p>",
+            onUpdate({ editor }) {
+                if (activeIndex < 0) return;
+                if (isProgrammaticSet) return;
+
+                rows[activeIndex].text_html = editor.getHTML();
+
+                // Update the visible row preview if it's currently rendered
+                // (cheap refresh: rerender visible window)
+                renderVisible();
+            },
+        });
+
+        function selectRow(i) {
+            activeIndex = i;
+
+            // update meta
+            metaRow.textContent = String(i + 1);
+            metaTime.textContent = rows[i].timestamp;
+            metaSpk.textContent = rows[i].speaker;
+
+            // set editor content without triggering a "save"
+            isProgrammaticSet = true;
+            editor.commands.setContent(rows[i].text_html || "<p></p>", false);
+            isProgrammaticSet = false;
+
+            editor.commands.focus("end");
+
+            // keep selection visible in grid
+            ensureRowInView(i);
+
+            // rerender visible window to highlight active row
+            renderVisible();
+        }
+
+        function ensureRowInView(i) {
+            const top = i * ROW_H;
+            const bottom = top + ROW_H;
+            const viewTop = viewport.scrollTop;
+            const viewBottom = viewTop + viewport.clientHeight;
+
+            if (top < viewTop) viewport.scrollTop = top;
+            else if (bottom > viewBottom) viewport.scrollTop = bottom - viewport.clientHeight;
+        }
+
+        /** -----------------------------
+         *  Toolbar actions
+         *  ----------------------------- */
+        document.getElementById("btnBold").addEventListener("click", () => {
+            editor.chain().focus().toggleBold().run();
+        });
+        document.getElementById("btnItalic").addEventListener("click", () => {
+            editor.chain().focus().toggleItalic().run();
+        });
+        document.getElementById("btnUndo").addEventListener("click", () => {
+            editor.chain().focus().undo().run();
+        });
+        document.getElementById("btnRedo").addEventListener("click", () => {
+            editor.chain().focus().redo().run();
+        });
+        document.getElementById("btnClear").addEventListener("click", () => {
+            if (activeIndex < 0) return;
+            editor.chain().focus().setContent("<p></p>", false).run();
+            rows[activeIndex].text_html = "<p></p>";
+            renderVisible();
+        });
+
+        /** -----------------------------
+         *  Export / Reset
+         *  ----------------------------- */
+        const exportOut = document.getElementById("exportOut");
+
+        document.getElementById("btnExport").addEventListener("click", () => {
+            const payload = rows.map(r => ({
+                timestamp: r.timestamp,
+                speaker: r.speaker,
+                text_html: r.text_html,
+            }));
+            exportOut.textContent = JSON.stringify(payload, null, 2);
+        });
+
+        document.getElementById("btnReset").addEventListener("click", () => {
+            rows = JSON.parse(initialSnapshot);
+            spacer.style.height = (rows.length * ROW_H) + "px";
+            activeIndex = -1;
+
+            metaRow.textContent = "—";
+            metaTime.textContent = "—";
+            metaSpk.textContent = "—";
+
+            isProgrammaticSet = true;
+            editor.commands.setContent("<p>Selecteer links een rij…</p>", false);
+            isProgrammaticSet = false;
+
+            exportOut.textContent = "";
+            viewport.scrollTop = 0;
+            renderVisible();
+        });
+
+        /** -----------------------------
+         *  Keyboard nav (optioneel maar handig)
+         *  ----------------------------- */
+        // Arrow up/down in grid area -> select previous/next row
+        viewport.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowDown") {
+                e.preventDefault();
+                const next = Math.min(rows.length - 1, (activeIndex < 0 ? 0 : activeIndex + 1));
+                selectRow(next);
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                const prev = Math.max(0, (activeIndex < 0 ? 0 : activeIndex - 1));
+                selectRow(prev);
+            }
+        });
+        // Make viewport focusable for keyboard nav
+        viewport.tabIndex = 0;
+
+        // Initial render
+        renderVisible();
+        // Preselect first row for convenience
+        selectRow(0);
+    </script>
+</body>
+
+</html>
