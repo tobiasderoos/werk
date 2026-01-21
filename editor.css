@@ -1,0 +1,220 @@
+:root {
+    --bg: #ffffff;
+    --panel: #ffffff;
+    --text: #1a1a1a;
+    --muted: #666666;
+    --line: #e5e5e5;
+    --accent: #0066cc;
+}
+
+html,
+body {
+    height: 100%;
+    margin: 0;
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+    background: var(--bg);
+    color: var(--text)
+}
+
+.app {
+    padding: 16px;
+    max-width: 1400px;
+    margin: 0 auto
+}
+
+.panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    overflow: hidden
+}
+
+.topbar {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px
+}
+
+.title {
+    font-weight: 800
+}
+
+.global-toolbar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap
+}
+
+.grid-header {
+    display: grid;
+    grid-template-columns: 140px 160px 1fr;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--panel);
+    font-size: 12px;
+    color: var(--muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em
+}
+
+.grid-body {
+    max-height: calc(100vh - 200px);
+    overflow: auto
+}
+
+.row {
+    display: grid;
+    grid-template-columns: 140px 160px 1fr;
+    gap: 12px;
+    align-items: stretch
+}
+
+.cell {
+    min-height: 24px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    line-height: 1.5;
+    font-size: 14px
+}
+
+.timestamp-cell {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted)
+}
+
+.speaker-cell {
+    color: var(--text)
+}
+
+.text-cell {
+    padding: 0;
+    cursor: pointer
+}
+
+.text-cell:hover {
+    background: #f5f5f5
+}
+
+.text-cell.editing {
+    background: #f9f9f9;
+    cursor: text
+}
+
+.text-cell .display {
+    padding: 10px 16px
+}
+
+.text-cell .display p {
+    margin: 0;
+    min-height: 1.5em;
+    line-height: 1.5
+}
+
+.text-cell .display p:empty::before {
+    content: "\00a0";
+    display: inline-block
+}
+
+.text-cell .ProseMirror {
+    outline: none;
+    padding: 10px 16px
+}
+
+.text-cell .ProseMirror p {
+    margin: 0;
+    min-height: 1.5em;
+    line-height: 1.5
+}
+
+.text-cell .ProseMirror p:empty::before,
+.text-cell .ProseMirror p:has(br:only-child)::before {
+    content: "";
+    display: inline-block
+}
+
+.text-cell .ProseMirror strong {
+    font-weight: 700;
+    color: #000
+}
+
+.text-cell .ProseMirror em {
+    font-style: italic
+}
+
+.text-cell .ProseMirror u {
+    text-decoration: underline
+}
+
+.text-cell .ProseMirror s {
+    text-decoration: line-through;
+    opacity: .6
+}
+
+.row.highlight {
+    background: #f0f8ff;
+}
+
+.row.highlight .cell {
+    border-bottom-color: #d0e8ff;
+}
+
+.row[data-speaker="Spreker 1"] .speaker-cell {
+    color: #5c6bc0;
+    font-weight: 600;
+}
+
+.row[data-speaker="Spreker 2"] .speaker-cell {
+    color: #8d6e63;
+    font-weight: 600;
+}
+
+.row[data-speaker="Spreker 3"] .speaker-cell {
+    color: #26a69a;
+    font-weight: 600;
+}
+
+.row[data-speaker="Spreker 4"] .speaker-cell {
+    color: #ec407a;
+    font-weight: 600;
+}
+
+button {
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 13px;
+    transition: all .15s
+}
+
+button:hover {
+    background: #f5f5f5;
+    border-color: var(--muted)
+}
+
+button.active {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent)
+}
+
+button.small {
+    padding: 4px 10px;
+    font-size: 12px
+}
+
+.hint {
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 4px
+}

@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="nl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Inline Editing Transcript Grid</title>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --panel: #0f1730;
+            --text: #e8ecff;
+            --muted: #a9b3d6;
+            --line: #27325b;
+            --accent: #7aa2ff;
+            --rowh: auto;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            background: linear-gradient(180deg, var(--bg), #070a14);
+            color: var(--text);
+        }
+
+        .app {
+            padding: 16px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            border: 1px solid var(--line);
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.03);
+            overflow: hidden;
+        }
+
+        .topbar {
+            padding: 12px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .title {
+            font-weight: 800;
+        }
+
+        .global-toolbar {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .grid-header {
+            display: grid;
+            grid-template-columns: 140px 160px 1fr;
+            gap: 12px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.02);
+            font-size: 13px;
+            color: var(--muted);
+            font-weight: 800;
+        }
+
+        .grid-body {
+            max-height: calc(100vh - 200px);
+            overflow: auto;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 140px 160px 1fr;
+            gap: 12px;
+            align-items: start;
+            min-height: 44px;
+            padding: 10px 12px;
+            border-bottom: 1px solid rgba(39, 50, 91, 0.65);
+            transition: background 0.15s;
+        }
+
+        .row:hover {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .row.editing {
+            background: rgba(122, 162, 255, 0.08);
+            outline: 1px solid rgba(122, 162, 255, 0.3);
+            outline-offset: -1px;
+        }
+
+        .cell {
+            overflow: hidden;
+        }
+
+        .time {
+            font-variant-numeric: tabular-nums;
+            color: var(--muted);
+            padding-top: 8px;
+        }
+
+        .speaker {
+            color: #dbe3ff;
+            padding-top: 8px;
+        }
+
+        .text {
+            color: var(--text);
+            line-height: 1.5;
+            min-height: 28px;
+        }
+
+        /* Text display mode */
+        .text-display {
+            cursor: pointer;
+            padding: 6px 10px;
+            border-radius: 8px;
+            transition: background 0.15s;
+            border: 2px solid transparent;
+        }
+
+        .text-display:hover {
+            background: rgba(255, 255, 255, 0.04);
+            border-color: rgba(122, 162, 255, 0.2);
+        }
+
+        .text-display p {
+            margin: 0 0 6px;
+        }
+
+        .text-display p:last-child {
+            margin-bottom: 0;
+        }
+
+        .text-display strong {
+            font-weight: 700;
+            color: #fff;
+        }
+
+        .text-display em {
+            font-style: italic;
+            color: #c8d5ff;
+        }
+
+        .text-display u {
+            text-decoration: underline;
+        }
+
+        .text-display s {
+            text-decoration: line-through;
+            opacity: 0.7;
+        }
+
+        /* Inline editor */
+        .text-editor {
+            display: none;
+            border: 2px solid rgba(122, 162, 255, 0.5);
+            border-radius: 10px;
+            background: rgba(15, 23, 48, 0.9);
+            padding: 8px;
+        }
+
+        .text-editor.active {
+            display: block;
+        }
+
+        .text-editor .ProseMirror {
+            outline: none;
+            min-height: 60px;
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 6px;
+            color: var(--text);
+        }
+
+        .text-editor .ProseMirror p {
+            margin: 0 0 8px;
+        }
+
+        .text-editor .ProseMirror p:last-child {
+            margin-bottom: 0;
+        }
+
+        .editor-toolbar {
+            display: none;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            border: 1px solid var(--line);
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        button:hover {
+            border-color: rgba(122, 162, 255, 0.7);
+        }
+
+        button.active {
+            background: rgba(122, 162, 255, 0.15);
+            border-color: rgba(122, 162, 255, 0.6);
+        }
+
+        button.primary {
+            background: rgba(122, 162, 255, 0.12);
+            border-color: rgba(122, 162, 255, 0.5);
+        }
+
+        button.small {
+            padding: 4px 8px;
+            font-size: 12px;
+        }
+
+        .hint {
+            color: var(--muted);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <div class="panel">
+            <div class="topbar">
+                <div class="title">
+                    Inline Editing Transcript Grid
+                </div>
+                <div class="global-toolbar" id="globalToolbar">
+                    <button id="btnBold" class="small">Bold (⌘B)</button>
+                    <button id="btnItalic" class="small">Italic (⌘I)</button>
+                    <button id="btnUnderline" class="small">Underline (⌘U)</button>
+                    <button id="btnStrike" class="small">Strike</button>
+                    <button id="btnUndo" class="small">Undo (⌘Z)</button>
+                    <button id="btnRedo" class="small">Redo (⌘⇧Z)</button>
+                </div>
+            </div>
+
+            <div class="grid-header">
+                <div>Timestamp</div>
+                <div>Spreker</div>
+                <div>Tekst (klik om inline te editen)</div>
+            </div>
+
+            <div class="grid-body" id="gridBody"></div>
+        </div>
+
+        <div class="hint" style="padding: 12px; text-align: center;">
+            Klik op een tekst om inline te editen. Wijzigingen worden automatisch opgeslagen. Klik buiten de editor om te sluiten.
+        </div>
+    </div>
+
+    <script type="module">
+        import { Editor } from "https://cdn.jsdelivr.net/npm/@tiptap/core@2.10.4/+esm";
+        import StarterKit from "https://cdn.jsdelivr.net/npm/@tiptap/starter-kit@2.10.4/+esm";
+        import Underline from "https://cdn.jsdelivr.net/npm/@tiptap/extension-underline@2.10.4/+esm";
+
+        // Generate demo data
+        function pad2(n) {
+            return String(n).padStart(2, "0");
+        }
+
+        function pad3(n) {
+            return String(n).padStart(3, "0");
+        }
+
+        function makeDemoRows(count) {
+            const speakers = ["Spreker 1", "Spreker 2", "Spreker 3", "Spreker 4"];
+            const sampleTexts = [
+                "<p>Dit is een <strong>belangrijk</strong> transcript segment.</p>",
+                "<p>Hier staat <em>cursieve</em> tekst in de transcriptie.</p>",
+                "<p>Let op: <u>onderstreepte</u> tekst voor nadruk.</p>",
+                "<p>Dit is <s>doorgestreepte</s> en <strong><em>vet én cursief</em></strong> samen.</p>",
+                "<p>Normale tekst zonder opmaak.</p>",
+                "<p><strong>Vet</strong>, <em>cursief</em>, <u>onderstreept</u> en <s>doorgestreept</s> in één zin.</p>",
+            ];
+
+            const out = [];
+            for (let i = 0; i < count; i++) {
+                const s = speakers[i % speakers.length];
+                const mm = Math.floor(i / 60);
+                const ss = i % 60;
+                const ms = (i * 37) % 1000;
+                const timestamp = `00:${pad2(mm)}:${pad2(ss)}.${pad3(ms)}`;
+                const textTemplate = sampleTexts[i % sampleTexts.length];
+                const text = textTemplate.replace(/segment/g, `segment ${i + 1}`);
+
+                out.push({
+                    timestamp,
+                    speaker: s,
+                    text_html: text
+                });
+            }
+            return out;
+        }
+
+        const rows = makeDemoRows(100);
+        let currentEditingIndex = -1;
+        let editors = {}; // Store editor instances by row index
+
+        const gridBody = document.getElementById("gridBody");
+        const globalToolbar = document.getElementById("globalToolbar");
+
+        // Sanitize HTML
+        function sanitizeHtml(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            const scripts = div.querySelectorAll('script');
+            scripts.forEach(script => script.remove());
+            const allowedTags = ['P', 'STRONG', 'EM', 'U', 'S', 'BR'];
+            const allElements = div.querySelectorAll('*');
+            allElements.forEach(el => {
+                if (!allowedTags.includes(el.tagName)) {
+                    el.replaceWith(el.textContent);
+                }
+                Array.from(el.attributes).forEach(attr => {
+                    el.removeAttribute(attr.name);
+                });
+            });
+            return div.innerHTML;
+        }
+
+        function createEditor(index, element) {
+            const editor = new Editor({
+                element: element,
+                extensions: [
+                    StarterKit.configure({
+                        heading: false,
+                        bulletList: false,
+                        orderedList: false,
+                        blockquote: false,
+                        codeBlock: false,
+                        horizontalRule: false,
+                    }),
+                    Underline,
+                ],
+                content: rows[index].text_html,
+                onUpdate({ editor }) {
+                    // Auto-save on update
+                    rows[index].text_html = editor.getHTML();
+                },
+            });
+
+            return editor;
+        }
+
+        function startEditing(index) {
+            // Stop any current editing
+            if (currentEditingIndex >= 0 && currentEditingIndex !== index) {
+                stopEditing(currentEditingIndex);
+            }
+
+            currentEditingIndex = index;
+            const row = document.querySelector(`[data-index="${index}"]`);
+            const displayEl = row.querySelector('.text-display');
+            const editorEl = row.querySelector('.text-editor');
+
+            displayEl.style.display = 'none';
+            editorEl.classList.add('active');
+            row.classList.add('editing');
+
+            // Create editor if it doesn't exist
+            if (!editors[index]) {
+                const editorHost = editorEl.querySelector('.editor-host');
+                editors[index] = createEditor(index, editorHost);
+            }
+
+            editors[index].commands.focus('end');
+            updateToolbarState(editors[index]);
+        }
+
+        function stopEditing(index, save = false) {
+            const row = document.querySelector(`[data-index="${index}"]`);
+            if (!row) return;
+
+            const displayEl = row.querySelector('.text-display');
+            const editorEl = row.querySelector('.text-editor');
+
+            if (save && editors[index]) {
+                rows[index].text_html = editors[index].getHTML();
+                displayEl.innerHTML = sanitizeHtml(rows[index].text_html);
+            } else if (!save && editors[index]) {
+                // Revert to original content
+                editors[index].commands.setContent(rows[index].text_html);
+            }
+
+            editorEl.classList.remove('active');
+            displayEl.style.display = 'block';
+            row.classList.remove('editing');
+
+            if (currentEditingIndex === index) {
+                currentEditingIndex = -1;
+            }
+
+            // Update display
+            displayEl.innerHTML = sanitizeHtml(rows[index].text_html);
+        }
+
+        function saveAndClose(index) {
+            stopEditing(index, true);
+        }
+
+        function renderGrid() {
+            gridBody.innerHTML = "";
+            rows.forEach((row, index) => {
+                const rowDiv = document.createElement("div");
+                rowDiv.className = "row";
+                rowDiv.dataset.index = index;
+
+                // Time cell
+                const timeCell = document.createElement("div");
+                timeCell.className = "cell time";
+                timeCell.textContent = row.timestamp;
+
+                // Speaker cell
+                const speakerCell = document.createElement("div");
+                speakerCell.className = "cell speaker";
+                speakerCell.textContent = row.speaker;
+
+                // Text cell with display and editor
+                const textCell = document.createElement("div");
+                textCell.className = "cell text";
+
+                // Display mode
+                const textDisplay = document.createElement("div");
+                textDisplay.className = "text-display";
+                textDisplay.innerHTML = sanitizeHtml(row.text_html);
+                textDisplay.addEventListener("click", () => startEditing(index));
+
+                // Editor mode
+                const textEditor = document.createElement("div");
+                textEditor.className = "text-editor";
+
+                const editorHost = document.createElement("div");
+                editorHost.className = "editor-host";
+
+                // Add keyboard shortcut for Escape
+                editorHost.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        saveAndClose(index);
+                    }
+                });
+
+                textEditor.appendChild(editorHost);
+
+                textCell.appendChild(textDisplay);
+                textCell.appendChild(textEditor);
+
+                rowDiv.appendChild(timeCell);
+                rowDiv.appendChild(speakerCell);
+                rowDiv.appendChild(textCell);
+                gridBody.appendChild(rowDiv);
+            });
+        }
+
+        function updateToolbarState(editor) {
+            if (editor) {
+                document.getElementById("btnBold").classList.toggle("active", editor.isActive("bold"));
+                document.getElementById("btnItalic").classList.toggle("active", editor.isActive("italic"));
+                document.getElementById("btnUnderline").classList.toggle("active", editor.isActive("underline"));
+                document.getElementById("btnStrike").classList.toggle("active", editor.isActive("strike"));
+            } else {
+                // Clear active states when no editor is active
+                document.getElementById("btnBold").classList.remove("active");
+                document.getElementById("btnItalic").classList.remove("active");
+                document.getElementById("btnUnderline").classList.remove("active");
+                document.getElementById("btnStrike").classList.remove("active");
+            }
+        }
+
+        // Global toolbar buttons
+        document.getElementById("btnBold").addEventListener("click", () => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                editors[currentEditingIndex].chain().focus().toggleBold().run();
+                updateToolbarState(editors[currentEditingIndex]);
+            }
+        });
+
+        document.getElementById("btnItalic").addEventListener("click", () => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                editors[currentEditingIndex].chain().focus().toggleItalic().run();
+                updateToolbarState(editors[currentEditingIndex]);
+            }
+        });
+
+        document.getElementById("btnUnderline").addEventListener("click", () => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                editors[currentEditingIndex].chain().focus().toggleUnderline().run();
+                updateToolbarState(editors[currentEditingIndex]);
+            }
+        });
+
+        document.getElementById("btnStrike").addEventListener("click", () => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                editors[currentEditingIndex].chain().focus().toggleStrike().run();
+                updateToolbarState(editors[currentEditingIndex]);
+            }
+        });
+
+        document.getElementById("btnUndo").addEventListener("click", () => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                editors[currentEditingIndex].commands.undo();
+                setTimeout(() => {
+                    editors[currentEditingIndex].commands.focus('end');
+                    updateToolbarState(editors[currentEditingIndex]);
+                }, 0);
+            }
+        });
+
+        document.getElementById("btnRedo").addEventListener("click", () => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                editors[currentEditingIndex].commands.redo();
+                setTimeout(() => {
+                    editors[currentEditingIndex].commands.focus('end');
+                    updateToolbarState(editors[currentEditingIndex]);
+                }, 0);
+            }
+        });
+
+        // Listen to editor updates to refresh toolbar
+        setInterval(() => {
+            if (currentEditingIndex >= 0 && editors[currentEditingIndex]) {
+                updateToolbarState(editors[currentEditingIndex]);
+            }
+        }, 200);
+
+        // Click outside to close editor
+        document.addEventListener('click', (e) => {
+            if (currentEditingIndex >= 0) {
+                const row = document.querySelector(`[data-index="${currentEditingIndex}"]`);
+                const editorEl = row?.querySelector('.text-editor');
+
+                // Check if click is outside the editor and toolbar
+                if (editorEl && !editorEl.contains(e.target) && !globalToolbar.contains(e.target)) {
+                    const textDisplay = row.querySelector('.text-display');
+                    // Don't close if clicking on the text display of the same row
+                    if (!textDisplay.contains(e.target)) {
+                        saveAndClose(currentEditingIndex);
+                    }
+                }
+            }
+        });
+
+        // Initial render
+        renderGrid();
+        console.log("Grid rendered with", rows.length, "rows");
+    </script>
+</body>
+
+</html>
